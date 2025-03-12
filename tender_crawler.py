@@ -19,44 +19,49 @@ base_url = 'https://web.pcc.gov.tw/prkms/tender/common/basic/readTenderBasic'
 
 def setup_driver():
     chrome_options = Options()
-    chrome_options.add_argument('--headless')  # 無頭模式，不顯示瀏覽器
-    chrome_options.add_argument('--no-sandbox')  # GitHub Actions 環境需要
-    chrome_options.add_argument('--disable-dev-shm-usage')  # GitHub Actions 環境需要
-    driver = webdriver.Chrome(options=chrome_options)
-    return driver
+    chrome_options.add_argument('--headless')
+    chrome_options.add_argument('--no-sandbox')
+    chrome_options.add_argument('--disable-dev-shm-usage')
+    try:
+        driver = webdriver.Chrome(options=chrome_options)
+        print("ChromeDriver 初始化成功")
+        return driver
+    except Exception as e:
+        print(f"ChromeDriver 初始化失敗: {str(e)}")
+        raise
 
 def search_tender(keyword):
     driver = setup_driver()
     driver.get(base_url)
     
     try:
-        # 等待頁面加載
         wait = WebDriverWait(driver, 10)
+        print(f"開始搜尋關鍵詞: {keyword}")
         
-        # 輸入標案名稱
         tender_name = wait.until(EC.presence_of_element_located((By.ID, 'tenderName')))
         tender_name.send_keys(keyword)
+        print("已輸入標案名稱")
         
-        # 選擇等標期內
         tender_status = wait.until(EC.presence_of_element_located((By.ID, 'tenderStatus')))
         tender_status.send_keys('等標期內')
+        print("已選擇等標期內")
         
-        # 點擊搜尋按鈕
         search_button = wait.until(EC.element_to_be_clickable((By.ID, 'searchButton')))
         search_button.click()
+        print("已點擊搜尋按鈕")
         
-        # 等待搜尋結果
         time.sleep(3)
         
-        # 獲取搜尋結果
         results = driver.find_elements(By.CLASS_NAME, 'tender-result-row')
         result_list = []
-        
         for result in results:
-            title = result.find_element(By.CLASS_NAME, 'tender-title').text
-            date = result.find_element(By.CLASS_NAME, 'tender-date').text
-            result_list.append({'title': title, 'date': date})
-            
+            try:
+                title = result.find_element(By.CLASS_NAME, 'tender-title').text
+                date = result.find_element(By.CLASS_NAME, 'tender-date').text
+                result_list.append({'title': title, 'date': date})
+            except Exception as e:
+                print(f"解析結果時出錯: {str(e)}")
+        print(f"找到 {len(result_list)} 個結果")
         return result_list
         
     except Exception as e:
@@ -67,35 +72,44 @@ def search_tender(keyword):
         driver.quit()
 
 def create_word_document(results):
-    doc = docx.Document()
-    doc.add_heading('標案搜尋結果', 0)
-    doc.add_paragraph(f'生成日期: {datetime.now().strftime("%Y-%m-%d")}')
-    
-    for result in results:
-        doc.add_paragraph(f"標案名稱: {result['title']}")
-        doc.add_paragraph(f"公告日期: {result['date']}")
-        doc.add_paragraph("-" * 50)
-    
-    filename = f'tender_results_{datetime.now().strftime("%Y%m%d")}.docx'
-    doc.save(filename)
-    return filename
+    try:
+        doc = docx.Document()
+        doc.add_heading('標案搜尋結果', 0)
+        doc.add_paragraph(f'生成日期: {datetime.now().strftime("%Y-%m-%d")}')
+        
+        for result in results:
+            doc.add_paragraph(f"標案名稱: {result['title']}")
+            doc.add_paragraph(f"公告日期: {result['date']}")
+            doc.add_paragraph("-" * 50)
+        
+        filename = f'tender_results_{datetime.now().strftime("%Y%m%d")}.docx'
+        doc.save(filename)
+        print(f"已生成文件: {filename}")
+        return filename
+    except Exception as e:
+        print(f"生成 Word 文件失敗: {str(e)}")
+        raise
 
 def send_email(filename):
-    sender_email = os.environ.get('SENDER_EMAIL')  # 從環境變數獲取
-    sender_password = os.environ.get('SENDER_PASSWORD')  # 從環境變數獲取
+    sender_email = os.environ.get('SENDER_EMAIL')
+    sender_password = os.environ.get('SENDER_PASSWORD')
     receiver_email = "haap0716@gmail.com"
+    
+    if not sender_email or not sender_password:
+        print("缺少郵件發送憑證（SENDER_EMAIL 或 SENDER_PASSWORD）")
+        return
     
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = receiver_email
     msg['Subject'] = f'每日標案搜尋結果 - {datetime.now().strftime("%Y-%m-%d")}'
     
-    with open(filename, "rb") as f:
-        part = MIMEApplication(f.read(), Name=os.path.basename(filename))
-        part['Content-Disposition'] = f'attachment; filename="{os.path.basename(filename)}"'
-        msg.attach(part)
-    
     try:
+        with open(filename, "rb") as f:
+            part = MIMEApplication(f.read(), Name=os.path.basename(filename))
+            part['Content-Disposition'] = f'attachment; filename="{os.path.basename(filename)}"'
+            msg.attach(part)
+        
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
             server.login(sender_email, sender_password)
@@ -105,27 +119,28 @@ def send_email(filename):
         print(f"郵件發送失敗: {str(e)}")
 
 def main():
-    # 收集所有搜尋結果
     all_results = []
     for keyword in keywords:
         results = search_tender(keyword)
         all_results.extend(results)
     
-    # 移除重複結果
     unique_results = []
     seen_titles = set()
     for result in all_results:
         if result['title'] not in seen_titles:
             unique_results.append(result)
             seen_titles.add(result['title'])
+    print(f"總共找到 {len(unique_results)} 個唯一結果")
     
-    # 生成並發送文件
     if unique_results:
         filename = create_word_document(unique_results)
         send_email(filename)
-        os.remove(filename)
+        if os.path.exists(filename):
+            os.remove(filename)
+            print("臨時文件已刪除")
     else:
         print("沒有找到任何結果")
 
 if __name__ == "__main__":
     main()
+           
