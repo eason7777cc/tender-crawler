@@ -11,7 +11,6 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 import os
 
-# 搜索關鍵詞列表
 keywords = ['拍攝', '影片', '紀錄片', '平面影像', '影音', '影片製作', 
            '素材製作', '短片', '攝影', '錄影', '錄製']
 
@@ -143,4 +142,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-           
