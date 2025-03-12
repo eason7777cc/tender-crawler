@@ -6,10 +6,8 @@ from selenium.webdriver.support import expected_conditions as EC
 import time
 import docx
 from datetime import datetime
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.application import MIMEApplication
 import os
+import requests
 
 keywords = ['拍攝', '影片', '紀錄片', '平面影像', '影音', '影片製作', 
            '素材製作', '短片', '攝影', '錄影', '錄製']
@@ -89,33 +87,32 @@ def create_word_document(results):
         print(f"生成 Word 文件失敗: {str(e)}")
         raise
 
-def send_email(filename):
-    sender_email = os.environ.get('SENDER_EMAIL')
-    sender_password = os.environ.get('SENDER_PASSWORD')
-    receiver_email = "haap0716@gmail.com"
-    
-    if not sender_email or not sender_password:
-        print("缺少郵件發送憑證（SENDER_EMAIL 或 SENDER_PASSWORD）")
+def send_line_notify(message):
+    token = os.environ.get('LINE_ACCESS_TOKEN')
+    if not token:
+        print("缺少 LINE Access Token")
         return
     
-    msg = MIMEMultipart()
-    msg['From'] = sender_email
-    msg['To'] = receiver_email
-    msg['Subject'] = f'每日標案搜尋結果 - {datetime.now().strftime("%Y-%m-%d")}'
+    url = "https://api.line.me/v2/bot/message/broadcast"  # 使用 broadcast API 廣播給所有好友
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "messages": [{
+            "type": "text",
+            "text": message
+        }]
+    }
     
     try:
-        with open(filename, "rb") as f:
-            part = MIMEApplication(f.read(), Name=os.path.basename(filename))
-            part['Content-Disposition'] = f'attachment; filename="{os.path.basename(filename)}"'
-            msg.attach(part)
-        
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.send_message(msg)
-            print("郵件發送成功")
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code == 200:
+            print("LINE 訊息發送成功")
+        else:
+            print(f"LINE 訊息發送失敗: {response.text}")
     except Exception as e:
-        print(f"郵件發送失敗: {str(e)}")
+        print(f"LINE 訊息發送錯誤: {str(e)}")
 
 def main():
     all_results = []
@@ -133,12 +130,19 @@ def main():
     
     if unique_results:
         filename = create_word_document(unique_results)
-        send_email(filename)
+        message = f"標案搜尋完成！找到 {len(unique_results)} 個結果，詳情請查看附件文件（僅限本地查看）。"
+        send_line_notify(message)
         if os.path.exists(filename):
             os.remove(filename)
             print("臨時文件已刪除")
     else:
+        send_line_notify("沒有找到任何標案結果。")
         print("沒有找到任何結果")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        error_msg = f"程式執行失敗: {str(e)}"
+        print(error_msg)
+        send_line_notify(error_msg)
