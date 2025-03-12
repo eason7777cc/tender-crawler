@@ -20,18 +20,16 @@ jobs:
         python -m pip install --upgrade pip
         pip install selenium python-docx requests
         sudo apt-get update
-        sudo apt-get install -y google-chrome-stable
-        CHROME_MAJOR_VERSION=$(google-chrome --version | grep -oE '[0-9]+' | head -n 1)
-        echo "Detected Chrome major version: $CHROME_MAJOR_VERSION"
-        CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_MAJOR_VERSION")
-        if [ -z "$CHROMEDRIVER_VERSION" ] || echo "$CHROMEDRIVER_VERSION" | grep -q "NoSuchKey"; then
-          echo "未找到匹配版本，使用最新版本"
-          CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE")
-        fi
-        echo "Installing ChromeDriver version: $CHROMEDRIVER_VERSION"
-        wget -q "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip"
+        # 安裝 Chrome 133
+        wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+        echo "deb http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+        sudo apt-get update
+        sudo apt-get install -y google-chrome-stable=133.0.6943.141-1
+        # 安裝匹配的 ChromeDriver 133.0.6943.141
+        wget -q "https://chromedriver.storage.googleapis.com/133.0.6943.141/chromedriver_linux64.zip"
         unzip chromedriver_linux64.zip
         sudo mv chromedriver /usr/local/bin/
+        google-chrome --version
         chromedriver --version
     - name: Run crawler
       env:
