@@ -21,10 +21,15 @@ jobs:
         pip install selenium python-docx
         sudo apt-get update
         sudo apt-get install -y google-chrome-stable
-        # 獲取 Chrome 版本並下載匹配的 ChromeDriver
-        CHROME_VERSION=$(google-chrome --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-        echo "Detected Chrome version: $CHROME_VERSION"
-        CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION")
+        # 獲取 Chrome 主版本號（例如 134）
+        CHROME_MAJOR_VERSION=$(google-chrome --version | grep -oE '[0-9]+' | head -n 1)
+        echo "Detected Chrome major version: $CHROME_MAJOR_VERSION"
+        # 查詢該主版本的最新 ChromeDriver
+        CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_MAJOR_VERSION")
+        if [ -z "$CHROMEDRIVER_VERSION" ]; then
+          echo "未找到匹配的 ChromeDriver 版本，使用最新版本作為後備"
+          CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE")
+        fi
         echo "Installing ChromeDriver version: $CHROMEDRIVER_VERSION"
         wget -q "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip"
         unzip chromedriver_linux64.zip
