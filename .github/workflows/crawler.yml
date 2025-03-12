@@ -1,0 +1,38 @@
+name: Daily Tender Crawler
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # UTC 04:00 = 台灣時間 12:00
+  workflow_dispatch: # 允許手動觸發，方便測試
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install selenium python-docx
+        sudo apt-get update
+        sudo apt-get install -y google-chrome-stable
+        wget https://chromedriver.storage.googleapis.com/$(wget -q -O - https://chromedriver.storage.googleapis.com/LATEST_RELEASE)/chromedriver_linux64.zip
+        unzip chromedriver_linux64.zip
+        sudo mv chromedriver /usr/local/bin/
+    - name: Run crawler
+      env:
+        SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+        SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
+      run: python tender_crawler.py
+    - name: Upload artifact
+      if: always() # 即使失敗也上傳結果
+      uses: actions/upload-artifact@v3
+      with:
+        name: tender-results
+        path: '*.docx'
+        
