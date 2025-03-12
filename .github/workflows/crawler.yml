@@ -3,14 +3,14 @@ name: Daily Tender Crawler
 on:
   schedule:
     - cron: '0 4 * * *' # UTC 04:00 = 台灣時間 12:00
-  workflow_dispatch: # 允許手動觸發，方便測試
+  workflow_dispatch:
 
 jobs:
   crawl:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -30,9 +30,8 @@ jobs:
         SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
       run: python tender_crawler.py
     - name: Upload artifact
-      if: always() # 即使失敗也上傳結果
-      uses: actions/upload-artifact@v3
+      if: always()
+      uses: actions/upload-artifact@v4
       with:
         name: tender-results
         path: '*.docx'
-        
